@@ -13,7 +13,7 @@ st.markdown(
     }
     </style>""",
     unsafe_allow_html=True
-)
+)       
 
 # ========== CONFIGURAÇÃO DO SPOTIFY ==========
 SPOTIPY_CLIENT_ID = "fb5a13371bb54f2e95951eab6ba3412a"
@@ -121,6 +121,14 @@ def buscar_dados_artist_musicbrainz(nome):
         return None
 
 # ========== LÓGICA DE JOGO ==========
+ARTISTA_FIXO = "Adele"  # <- Defina o nome aqui
+
+if 'artista_dia' not in st.session_state:
+    s = buscar_dados_artist_spotify(ARTISTA_FIXO)
+    m = buscar_dados_artist_musicbrainz(ARTISTA_FIXO)
+    if s and m:
+        st.session_state.artista_dia = {**s, **m}
+        st.session_state.tentativas = []
 
 st.title("🎤 Musicle - Descubra o Artista do Dia")
 modo = st.sidebar.selectbox("Modo:", ["Jogar", "Admin"])
