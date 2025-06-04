@@ -1,11 +1,12 @@
-import streamlit as st
-import requests
-import spotipy
-from spotipy.oauth2 import SpotifyClientCredentials
-import random
-from datetime import datetime
+import streamlit as st  # Interface interativa
+import requests  # Requisições HTTP
+import spotipy  # Cliente Spotify API
+from spotipy.oauth2 import SpotifyClientCredentials  # Autenticação Spotipy
+import random  # Aleatoriedade (não usado aqui)
+from datetime import datetime  # Manipulação de datas
 
 # ========== REMOVER ÍCONES DE ÂNCORA ==========
+# Remove os ícones de link que aparecem ao lado dos títulos
 st.markdown(
     """<style>
     .stMarkdown h1 a, .stMarkdown h2 a, .stMarkdown h3 a, .stMarkdown h4 a, .stMarkdown h5 a, .stMarkdown h6 a {
@@ -16,21 +17,27 @@ st.markdown(
 )       
 
 # ========== CONFIGURAÇÃO DO SPOTIFY ==========
+# Define credenciais da API do Spotify
 SPOTIPY_CLIENT_ID = "fb5a13371bb54f2e95951eab6ba3412a"
 SPOTIPY_CLIENT_SECRET = "bd9af6218f31416698ea259416a88113"
 
+# Inicializa cliente Spotipy autenticado
 sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(
     client_id=SPOTIPY_CLIENT_ID,
     client_secret=SPOTIPY_CLIENT_SECRET
 ))
 
 # ========== UTILITÁRIAS ==========
+
+# Converte código de país (ex: 'BR') para emoji 🇧🇷
 def country_to_flag(code):
     return ''.join(chr(ord(char) + 127397) for char in code.upper()) if len(code) == 2 else code
 
+# Retorna cor associada ao tipo de feedback
 def get_color(feedback):
     return {"🎯": "green", "🟡": "#FFD700", "⚪": "#555555"}.get(feedback, "#555555")
 
+# Formata grandes números com K, M, B
 def format_number(n):
     if n >= 1_000_000_000:
         return f"{n / 1_000_000_000:.1f}B"
@@ -40,6 +47,7 @@ def format_number(n):
         return f"{n / 1_000:.1f}K"
     return str(n)
 
+# Retorna HTML de caixa estilizada com cor, label e valor
 def styled_box(label, value, color, arrow=None):
     arrow_str = f" {arrow}" if arrow else ""
     return f"""
@@ -49,11 +57,13 @@ def styled_box(label, value, color, arrow=None):
     </div>"""
 
 # ========== BUSCAS ==========
+
+# Busca artista no Spotify (usando cache por 1 hora)
 @st.cache_data(ttl=3600)
 def buscar_dados_artist_spotify(nome):
     try:
-        resultado = sp.search(q=nome, type='artist', limit=1)
-        artista = resultado['artists']['items'][0]
+        resultado = sp.search(q=nome, type='artist', limit=1)  # Busca artista
+        artista = resultado['artists']['items'][0]  # Pega o primeiro da lista
         return {
             "nome": artista['name'],
             "seguidores": artista['followers']['total'],
@@ -63,12 +73,13 @@ def buscar_dados_artist_spotify(nome):
             "genero_musical": artista['genres'] or ['Desconhecido']
         }
     except:
-        return None
+        return None  # Em caso de erro
 
+# Busca dados no MusicBrainz (país, debut, idade, etc.)
 @st.cache_data(ttl=3600)
 def buscar_dados_artist_musicbrainz(nome):
     try:
-        headers = {"User-Agent": "MusicleGame/1.0 (email@dominio.com)"}
+        headers = {"User-Agent": "MusicleGame/1.0 (email@dominio.com)"}  # Header obrigatório
         url = f"https://musicbrainz.org/ws/2/artist/?query=artist:{nome}&fmt=json&limit=1"
         r = requests.get(url, headers=headers)
         r.raise_for_status()
@@ -80,8 +91,10 @@ def buscar_dados_artist_musicbrainz(nome):
         mbid = artista['id']
         pais = artista.get('begin-area', {}).get('iso-3166-1-codes', [None])[0] or artista.get('country', 'Desconhecido')
         tipo = artista.get('type', 'Desconhecido')
+
+        # Determina gênero do artista
         if tipo == "Group":
-         genero_pessoa = "Grupo"
+            genero_pessoa = "Grupo"
         else:
             genero_raw = artista.get("gender", "").lower()
             if genero_raw == "male":
@@ -93,7 +106,7 @@ def buscar_dados_artist_musicbrainz(nome):
             else:
                 genero_pessoa = "Desconhecido"
 
-
+        # Calcula idade com base na data de nascimento
         nascimento_str = artista.get('life-span', {}).get('begin', None)
         idade = 'Desconhecido'
         if nascimento_str:
@@ -104,6 +117,7 @@ def buscar_dados_artist_musicbrainz(nome):
             except:
                 pass
 
+        # Busca o álbum mais antigo
         url_album = f"https://musicbrainz.org/ws/2/release-group?artist={mbid}&type=album&fmt=json&limit=100"
         albuns = requests.get(url_album, headers=headers).json().get('release-groups', [])
         albuns_validos = [(a['title'], a['first-release-date'][:4]) for a in albuns if 'first-release-date' in a and a['first-release-date'][:4].isdigit()]
@@ -121,8 +135,11 @@ def buscar_dados_artist_musicbrainz(nome):
         return None
 
 # ========== LÓGICA DE JOGO ==========
-ARTISTA_FIXO = "Adele"  # <- Defina o nome aqui
 
+# Define o artista do dia fixo
+ARTISTA_FIXO = "Adele"  # Pode ser trocado
+
+# Inicializa artista e tentativas se não estiverem definidos
 if 'artista_dia' not in st.session_state:
     s = buscar_dados_artist_spotify(ARTISTA_FIXO)
     m = buscar_dados_artist_musicbrainz(ARTISTA_FIXO)
@@ -130,12 +147,17 @@ if 'artista_dia' not in st.session_state:
         st.session_state.artista_dia = {**s, **m}
         st.session_state.tentativas = []
 
+# Título principal da interface
 st.title("🎤 Musicle - Descubra o Artista do Dia")
+
+# Seletor de modo: Jogar ou Admin
 modo = st.sidebar.selectbox("Modo:", ["Jogar", "Admin"])
 
+# Inicializa tentativas se não existir
 if 'tentativas' not in st.session_state:
     st.session_state.tentativas = []
 
+# Modo Admin: permite definir o artista do dia
 if modo == "Admin":
     nome = st.text_input("Defina o artista do dia:")
     if st.button("Definir"):
@@ -148,11 +170,12 @@ if modo == "Admin":
         else:
             st.error("Não foi possível definir o artista.")
 
+# Modo Jogar: jogador tenta adivinhar o artista
 if modo == "Jogar":
     if 'artista_dia' not in st.session_state:
         st.info("Admin precisa definir o artista do dia.")
     else:
-        if len(st.session_state.tentativas) < 3:
+        if len(st.session_state.tentativas) < 7:
             nome = st.text_input("Digite o nome do artista:")
             if st.button("Enviar"):
                 s = buscar_dados_artist_spotify(nome)
@@ -162,6 +185,8 @@ if modo == "Jogar":
                     alvo = st.session_state.artista_dia
                     acertou = tentativa['nome'].lower() == alvo['nome'].lower()
                     fb = None
+
+                    # Gera feedback comparando atributos
                     if not acertou:
                         fb = {
                             'seguidores': "🎯" if tentativa['seguidores'] == alvo['seguidores'] else "🟡" if abs(tentativa['seguidores'] - alvo['seguidores']) <= 1e6 else "⚪",
@@ -172,15 +197,18 @@ if modo == "Jogar":
                             'tipo': "🎯" if tentativa['tipo'] == alvo['tipo'] else "⚪",
                             'genero_pessoa': "🎯" if tentativa['genero_pessoa'] == alvo['genero_pessoa'] else "⚪"
                         }
+
+                    # Adiciona tentativa ao histórico
                     st.session_state.tentativas.insert(0, (tentativa, fb, acertou))
 
+        # Exibe as tentativas realizadas
         for i, (t, fb, acertou) in enumerate(st.session_state.tentativas):
             st.subheader(f"Tentativa {len(st.session_state.tentativas)-i}: {t['nome']}")
             if t['imagem']:
                 st.image(t['imagem'], width=100)
             col1, col2, col3 = st.columns(3)
             if acertou:
-                st.balloons()  # ANIMAÇÃO PARA ACERTO
+                st.balloons()  # Animação de confete
                 col1.markdown(styled_box("Debut", f"{t['ano_inicio']} ({t['album_inicio']})", "green"), unsafe_allow_html=True)
                 col2.markdown(styled_box("Seguidores", format_number(t['seguidores']), "green", "🎯"), unsafe_allow_html=True)
                 col3.markdown(styled_box("Popularidade", f"#{t['popularidade']}", "green", "🎯"), unsafe_allow_html=True)
@@ -191,7 +219,6 @@ if modo == "Jogar":
                 st.success("🎉 Você acertou! Confira mais sobre o artista no Spotify:")
                 spotify_url = f"https://open.spotify.com/artist/{t['id_spotify']}"
                 st.markdown(f"[🔗 Ir para o perfil de {t['nome']} no Spotify]({spotify_url})", unsafe_allow_html=True)
-
             else:
                 col1.markdown(styled_box("Debut", f"{t['ano_inicio']} ({t['album_inicio']})", get_color(fb['ano_inicio']), "↑" if t['ano_inicio'] < st.session_state.artista_dia['ano_inicio'] else "↓"), unsafe_allow_html=True)
                 col2.markdown(styled_box("Seguidores", format_number(t['seguidores']), get_color(fb['seguidores']), "↑" if t['seguidores'] < st.session_state.artista_dia['seguidores'] else "↓"), unsafe_allow_html=True)
