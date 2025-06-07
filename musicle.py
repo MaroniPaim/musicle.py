@@ -79,13 +79,14 @@ def buscar_dados_artist_spotify(nome):
 @st.cache_data(ttl=3600)
 def buscar_dados_artist_musicbrainz(nome):
     try:
-        headers = {"User-Agent": "MusicleGame/1.0 (email@dominio.com)"}  # Header obrigatório
+        headers = {"User-Agent": "MusicleGame/1.0 (email@dominio.com)"}
         url = f"https://musicbrainz.org/ws/2/artist/?query=artist:{nome}&fmt=json&limit=1"
         r = requests.get(url, headers=headers)
         r.raise_for_status()
         data = r.json()
         if 'artists' not in data or not data['artists']:
             return None
+        
 
         artista = data['artists'][0]
         mbid = artista['id']
@@ -106,7 +107,7 @@ def buscar_dados_artist_musicbrainz(nome):
             else:
                 genero_pessoa = "Desconhecido"
 
-        # Calcula idade com base na data de nascimento
+        # Idade
         nascimento_str = artista.get('life-span', {}).get('begin', None)
         idade = 'Desconhecido'
         if nascimento_str:
@@ -117,11 +118,17 @@ def buscar_dados_artist_musicbrainz(nome):
             except:
                 pass
 
-        # Busca o álbum mais antigo
+        # Álbum de estreia
         url_album = f"https://musicbrainz.org/ws/2/release-group?artist={mbid}&type=album&fmt=json&limit=100"
         albuns = requests.get(url_album, headers=headers).json().get('release-groups', [])
         albuns_validos = [(a['title'], a['first-release-date'][:4]) for a in albuns if 'first-release-date' in a and a['first-release-date'][:4].isdigit()]
         album_inicio, ano_inicio = (albuns_validos and min(albuns_validos, key=lambda x: int(x[1]))) or ("Desconhecido", "Desconhecido")
+
+        # Tags (gêneros)
+        url_tags = f"https://musicbrainz.org/ws/2/artist/{mbid}?inc=tags&fmt=json"
+        tags_data = requests.get(url_tags, headers=headers).json()
+        tags = tags_data.get('tags', [])
+        generos_mb = [tag['name'].title() for tag in tags if 'name' in tag][:3] or ['Desconhecido']
 
         return {
             "pais": pais,
@@ -129,21 +136,23 @@ def buscar_dados_artist_musicbrainz(nome):
             "album_inicio": album_inicio,
             "tipo": tipo,
             "genero_pessoa": genero_pessoa,
-            "idade": idade
+            "idade": idade,
+            "genero_musical_mb": generos_mb
         }
     except:
         return None
-
 # ========== LÓGICA DE JOGO ==========
 
 # Define o artista do dia fixo
-ARTISTA_FIXO = "Adele"  # Pode ser trocado
+ARTISTA_FIXO = "Blink-182"  # Pode ser trocado
 
 # Inicializa artista e tentativas se não estiverem definidos
 if 'artista_dia' not in st.session_state:
     s = buscar_dados_artist_spotify(ARTISTA_FIXO)
     m = buscar_dados_artist_musicbrainz(ARTISTA_FIXO)
     if s and m:
+        if not s.get("genero_musical") or s["genero_musical"] == ['Desconhecido']:
+            s["genero_musical"] = m.get("genero_musical_mb", ['Desconhecido'])
         st.session_state.artista_dia = {**s, **m}
         st.session_state.tentativas = []
 
