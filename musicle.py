@@ -133,7 +133,7 @@ def buscar_musicbrainz(nome):
         return None
 
 # ========== SETUP ARTISTA FIXO ==========
-ARTISTA_FIXO = "Adele"
+ARTISTA_FIXO = "The Weeknd"
 if 'artista_dia' not in st.session_state:
     init = buscar_spotify(ARTISTA_FIXO)
     mbi  = buscar_musicbrainz(ARTISTA_FIXO) or DEFAULT_MB
@@ -280,6 +280,4 @@ else:
 
         if acertou:
             st.success("🎉 Acertou!")
-            if st.session_state.artista_dia.get("imagem"):
-                st.image(st.session_state.artista_dia["imagem"], width=180)
             break
