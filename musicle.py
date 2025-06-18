@@ -143,7 +143,7 @@ if 'artista_dia' not in st.session_state:
 
 # ========== UI PRINCIPAL ==========
 st.title("🎤 Musicle - Descubra o Artista do Dia")
-modo = st.sidebar.selectbox("Modo:", ["Admin","Jogar"])
+modo = st.sidebar.selectbox("Modo:", ["Jogar","Admin"])
 
 # ------- ADMIN -------
 if modo=="Admin":
